@@ -1,9 +1,12 @@
 # Serial Monitor (WSL & Windows)
 
-[![Version](https://img.shields.io/badge/version-0.2.1-blue)](https://marketplace.visualstudio.com/items?itemName=Roger-Han.wsl-serial-monitor)
+[![Version](https://img.shields.io/badge/version-0.2.9-blue)](https://marketplace.visualstudio.com/items?itemName=Roger-Han.wsl-serial-monitor)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![GitHub](https://img.shields.io/badge/GitHub-Zepp--Hzanj%2Fwsl--serial--monitor-blue?logo=github)](https://github.com/Zepp-Hanzj/wsl-serial-monitor)
 
 在 VS Code 编辑器中打开 COM 串口，实时显示串口日志，支持关键字高亮过滤、日志搜索、数据发送。同时支持 **WSL** 和 **原生 Windows** 环境。
+
+> 源码：https://github.com/Zepp-Hanzj/wsl-serial-monitor
 
 ## ✨ 功能特性
 
