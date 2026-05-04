@@ -1,0 +1,257 @@
+{
+  "name": "wsl-serial-monitor",
+  "displayName": "Serial Monitor (WSL & Windows)",
+  "description": "Open and monitor COM serial ports from WSL or native Windows, with real-time log display, color filters, and search in an editor tab.",
+  "version": "0.2.9",
+  "publisher": "Roger-Han",
+  "author": {
+    "name": "Roger-Han"
+  },
+  "license": "MIT",
+  "icon": "images/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Zepp-Hanzj/wsl-serial-monitor"
+  },
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "serial",
+    "serial monitor",
+    "com port",
+    "wsl",
+    "windows",
+    "embedded",
+    "debug",
+    "firmware",
+    "uart"
+  ],
+  "bugs": {
+    "url": "https://github.com/hanzj/wsl-serial-monitor/issues"
+  },
+  "homepage": "https://github.com/hanzj/wsl-serial-monitor#readme",
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "serial-monitor-view",
+          "title": "Serial Monitor",
+          "icon": "images/activity-bar.svg"
+        }
+      ]
+    },
+    "views": {
+      "serial-monitor-view": [
+        {
+          "id": "serial-monitor-panel",
+          "name": "Serial Monitor"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "wsl-serial-monitor.open",
+        "title": "Serial: Open Serial Port",
+        "category": "Serial",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "wsl-serial-monitor.close",
+        "title": "Serial: Close Serial Port",
+        "category": "Serial",
+        "icon": "$(debug-disconnect)"
+      },
+      {
+        "command": "wsl-serial-monitor.listPorts",
+        "title": "Serial: List Available Ports",
+        "category": "Serial"
+      },
+      {
+        "command": "wsl-serial-monitor.sendData",
+        "title": "Serial: Send Data to Serial Port",
+        "category": "Serial"
+      },
+      {
+        "command": "wsl-serial-monitor.clearLog",
+        "title": "Serial: Clear Log View",
+        "category": "Serial",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "wsl-serial-monitor.saveLog",
+        "title": "Serial: Save Log to File",
+        "category": "Serial",
+        "icon": "$(save)"
+      },
+      {
+        "command": "wsl-serial-monitor.openSettings",
+        "title": "Serial: Open Settings",
+        "category": "Serial",
+        "icon": "$(gear)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "wsl-serial-monitor.open",
+          "when": "view == serial-monitor-panel",
+          "group": "navigation"
+        },
+        {
+          "command": "wsl-serial-monitor.close",
+          "when": "view == serial-monitor-panel",
+          "group": "navigation"
+        },
+        {
+          "command": "wsl-serial-monitor.saveLog",
+          "when": "view == serial-monitor-panel",
+          "group": "navigation"
+        },
+        {
+          "command": "wsl-serial-monitor.clearLog",
+          "when": "view == serial-monitor-panel",
+          "group": "navigation"
+        },
+        {
+          "command": "wsl-serial-monitor.openSettings",
+          "when": "view == serial-monitor-panel",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Serial Monitor",
+      "properties": {
+        "wsl-serial-monitor.defaultBaudRate": {
+          "type": "number",
+          "default": 115200,
+          "enum": [
+            9600,
+            19200,
+            38400,
+            57600,
+            115200,
+            230400,
+            460800,
+            921600
+          ],
+          "description": "Default baud rate for serial connections."
+        },
+        "wsl-serial-monitor.defaultPort": {
+          "type": "string",
+          "default": "",
+          "description": "Default serial port to open automatically, for example COM7. If opening this port fails, the extension falls back to scanning and prompting for a port."
+        },
+        "wsl-serial-monitor.defaultDataBits": {
+          "type": "number",
+          "default": 8,
+          "enum": [
+            5,
+            6,
+            7,
+            8
+          ],
+          "description": "Data bits for serial connection."
+        },
+        "wsl-serial-monitor.defaultStopBits": {
+          "type": "string",
+          "default": "One",
+          "enum": [
+            "One",
+            "OnePointFive",
+            "Two"
+          ],
+          "description": "Stop bits for serial connection."
+        },
+        "wsl-serial-monitor.defaultParity": {
+          "type": "string",
+          "default": "None",
+          "enum": [
+            "None",
+            "Odd",
+            "Even",
+            "Mark",
+            "Space"
+          ],
+          "description": "Parity for serial connection."
+        },
+        "wsl-serial-monitor.encoding": {
+          "type": "string",
+          "default": "utf-8",
+          "description": "Character encoding for serial data display."
+        },
+        "wsl-serial-monitor.bufferSize": {
+          "type": "string",
+          "default": "2M",
+          "pattern": "^\\s*\\d+(?:\\.\\d+)?\\s*[KkMm]\\s*$",
+          "markdownDescription": "Maximum in-memory log buffer size. Supports `K` and `M` suffixes, for example `100K`, `2M`, `256M`. Valid range: `100K` to `256M`."
+        },
+        "wsl-serial-monitor.maxLogLines": {
+          "type": "number",
+          "default": 50000,
+          "description": "Legacy line-based limit. Buffer trimming now primarily follows bufferSize."
+        },
+        "wsl-serial-monitor.showTimestamp": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to prepend timestamps to each line."
+        },
+        "wsl-serial-monitor.autoReconnect": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically try to reconnect when connection is lost."
+        },
+        "wsl-serial-monitor.powershellPath": {
+          "type": "string",
+          "default": "powershell.exe",
+          "description": "Path to PowerShell executable. Change to 'pwsh.exe' for PowerShell Core."
+        },
+        "wsl-serial-monitor.lineEnding": {
+          "type": "string",
+          "default": "\\r\\n",
+          "enum": [
+            "\\n",
+            "\\r",
+            "\\r\\n",
+            "None"
+          ],
+          "description": "Line ending appended to sent data."
+        },
+        "wsl-serial-monitor.saveDirectory": {
+          "type": "string",
+          "default": "",
+          "description": "Default directory to save serial logs. Leave empty to use workspace root."
+        },
+        "wsl-serial-monitor.saveFilePrefix": {
+          "type": "string",
+          "default": "serial_log",
+          "description": "Prefix for saved log filenames. Full name: {prefix}_{yyyyMMdd_HHmmss}.log"
+        }
+      }
+    },
+    "keybindings": [
+      {
+        "command": "wsl-serial-monitor.open",
+        "key": "ctrl+alt+s",
+        "when": "true"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.80.0",
+    "typescript": "^5.3.0"
+  }
+}
