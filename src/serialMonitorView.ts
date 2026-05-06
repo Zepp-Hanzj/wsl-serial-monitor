@@ -76,22 +76,16 @@ export class SerialMonitorViewProvider {
     }
 
     revive(panel: vscode.WebviewPanel): void {
-        this.debugLog('[WEBVIEW] Reviving restored panel');
         if (this.panel) {
-            // We already have an active panel (from show()) — keep it, discard the restored one
-            this.debugLog('[WEBVIEW] Discarding restored panel, keeping active panel');
             panel.dispose();
             return;
         }
-        // No active panel — adopt the restored one
         this.attachPanel(panel);
         panel.webview.html = this.getWebviewContent();
-        this.debugLog('[WEBVIEW] Adopted restored panel, HTML assigned');
 
-        // Same fallback as show()
         setTimeout(() => {
             if (!this.webviewReady && this.panel) {
-                this.debugLog('[WEBVIEW] Ready timeout on revive — forcing ready state');
+                this.debugLog('[WEBVIEW] Ready timeout — forcing');
                 this.webviewReady = true;
                 this.panel.webview.postMessage({
                     type: 'status',
@@ -116,20 +110,17 @@ export class SerialMonitorViewProvider {
             async (message) => {
                 switch (message.command) {
                     case 'ready':
-                        this.debugLog('[WEBVIEW] Received ready');
                         this.webviewReady = true;
                         this.panel?.webview.postMessage({
                             type: 'status',
                             connected: this.isConnected,
                             info: this.statusInfo
                         });
-                        this.debugLog(`[WEBVIEW] Sent status connected=${this.isConnected} info=${this.statusInfo}`);
                         if (this.logBuffer.length > 0) {
                             this.panel?.webview.postMessage({
                                 type: 'snapshot',
                                 lines: this.getLogLines()
                             });
-                            this.debugLog(`[WEBVIEW] Sent snapshot lines=${this.logBuffer.length}`);
                         }
                         this.flushPendingLogs();
                         break;
@@ -161,19 +152,16 @@ export class SerialMonitorViewProvider {
                         await vscode.commands.executeCommand('wsl-serial-monitor.close');
                         break;
                     case 'requestStatus':
-                        this.debugLog('[WEBVIEW] Received requestStatus');
                         this.panel?.webview.postMessage({
                             type: 'status',
                             connected: this.isConnected,
                             info: this.statusInfo
                         });
-                        this.debugLog(`[WEBVIEW] Re-sent status connected=${this.isConnected} info=${this.statusInfo}`);
                         if (this.logBuffer.length > 0) {
                             this.panel?.webview.postMessage({
                                 type: 'snapshot',
                                 lines: this.getLogLines()
                             });
-                            this.debugLog(`[WEBVIEW] Re-sent snapshot lines=${this.logBuffer.length}`);
                         }
                         break;
                     case 'save':
@@ -188,13 +176,9 @@ export class SerialMonitorViewProvider {
         const attachedPanel = panel;
         this.panel.onDidDispose(
             () => {
-                // Only clear if the disposed panel is still the one we're tracking
                 if (this.panel === attachedPanel) {
-                    this.debugLog('[WEBVIEW] Tracked panel disposed');
                     this.panel = undefined;
                     this.webviewReady = false;
-                } else {
-                    this.debugLog('[WEBVIEW] Old panel disposed (ignored)');
                 }
             },
             null,
@@ -208,25 +192,16 @@ export class SerialMonitorViewProvider {
     show(): void {
         if (this.panel) {
             if (this.webviewReady) {
-                // Script is alive, just reveal — DO NOT rewrite HTML
-                this.debugLog('[WEBVIEW] Panel alive, just revealing');
                 this.panel.reveal(vscode.ViewColumn.Two);
                 return;
             }
-            // Script died — force recreate by disposing old panel
-            this.debugLog('[WEBVIEW] Panel exists but script dead, disposing to recreate');
             this.panel.dispose();
         }
-
-        this.debugLog('[WEBVIEW] Creating panel');
 
         const panel = vscode.window.createWebviewPanel(
             'wslSerialMonitor',
             '🔌 Serial Monitor',
-            {
-                viewColumn: vscode.ViewColumn.Two,
-                preserveFocus: false
-            },
+            { viewColumn: vscode.ViewColumn.Two, preserveFocus: false },
             {
                 enableScripts: true,
                 retainContextWhenHidden: true,
@@ -236,13 +211,10 @@ export class SerialMonitorViewProvider {
 
         this.attachPanel(panel);
         panel.webview.html = this.getWebviewContent();
-        this.debugLog('[WEBVIEW] HTML assigned');
 
-        // Fallback: if ready never arrives within 3s, assume script is alive
-        // (handles edge cases where postMessage from webview is lost)
         setTimeout(() => {
             if (!this.webviewReady && this.panel) {
-                this.debugLog('[WEBVIEW] Ready timeout — forcing ready state');
+                this.debugLog('[WEBVIEW] Ready timeout — forcing');
                 this.webviewReady = true;
                 this.panel.webview.postMessage({
                     type: 'status',
@@ -661,6 +633,31 @@ export class SerialMonitorViewProvider {
 
         .hidden { display: none !important; }
 
+        .btn-regex {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2px 6px;
+            border: 1px solid var(--input-border);
+            border-radius: 3px;
+            background: var(--input-bg);
+            color: var(--text-secondary);
+            font-size: 11px;
+            font-family: monospace;
+            font-weight: bold;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: background 0.15s, color 0.15s, border-color 0.15s;
+        }
+
+        .btn-regex:hover { border-color: var(--btn-bg); color: var(--text-primary); }
+
+        .btn-regex.active {
+            background: var(--btn-bg);
+            border-color: var(--btn-bg);
+            color: #fff;
+        }
+
         .filter-bar {
             display: flex;
             align-items: center;
@@ -787,6 +784,7 @@ export class SerialMonitorViewProvider {
         </div>
         <div class="search-box">
             <input type="text" class="search-input" id="searchInput" placeholder="Search logs..." oninput="onSearchInput()" />
+            <button class="btn-regex" id="btnSearchRegex" onclick="toggleSearchRegex()" title="Regex search">.*</button>
             <span class="search-count" id="searchCount"></span>
             <button class="btn" onclick="searchPrev()">▲</button>
             <button class="btn" onclick="searchNext()">▼</button>

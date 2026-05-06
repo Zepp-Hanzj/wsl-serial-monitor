@@ -1,5 +1,6 @@
 try {
         const vscode = acquireVsCodeApi();
+    const persistedState = vscode.getState() || {};
         // IMPORTANT: Fire ready IMMEDIATELY so host knows this script is alive.
         // Must be before any complex logic that could throw.
         vscode.postMessage({ command: 'ready' });
@@ -41,52 +42,87 @@ try {
         ];
         let filters = [];
         let filterId = 0;
-        let filterOnly = false;
+        let filterOnly = Boolean(persistedState.filterOnly);
+        let searchRegex = Boolean(persistedState.searchRegex);
+
+        function persistUiState() {
+            vscode.setState({
+                searchText: searchInput.value,
+                searchRegex,
+                filterOnly,
+                filters,
+                showTimestamp: document.getElementById('chkTimestamp')?.checked || false
+            });
+        }
 
         function toggleFilterMode() {
             filterOnly = document.getElementById('chkFilterOnly').checked;
             applyFiltersToExisting();
+            persistUiState();
+        }
+
+        function toggleSearchRegex() {
+            searchRegex = !searchRegex;
+            document.getElementById('btnSearchRegex').classList.toggle('active', searchRegex);
+            performSearch();
+            persistUiState();
         }
 
         function addFilter() {
             const id = filterId++;
             const color = DEFAULT_FILTER_COLORS[filters.length % DEFAULT_FILTER_COLORS.length];
-            filters.push({ id, text: '', color, enabled: true });
-            renderFilterEntry(id, color);
+            filters.push({ id, text: '', color, enabled: true, regex: false });
+            renderFilterEntry(id, color, '', true, false, true);
             applyFiltersToExisting();
+            persistUiState();
         }
 
-        function renderFilterEntry(id, color) {
+        function renderFilterEntry(id, color, initialText = '', initialEnabled = true, initialRegex = false, shouldFocus = true) {
             const container = document.getElementById('filterEntries');
             const entry = document.createElement('div');
             entry.className = 'filter-entry';
             entry.id = 'filter-' + id;
 
             const chk = document.createElement('input');
-            chk.type = 'checkbox'; chk.checked = true; chk.title = 'Enable/Disable';
-            chk.onchange = () => { const f = filters.find(f => f.id === id); if (f) { f.enabled = chk.checked; entry.classList.toggle('disabled', !f.enabled); applyFiltersToExisting(); } };
+            chk.type = 'checkbox'; chk.checked = initialEnabled; chk.title = 'Enable/Disable';
+            chk.onchange = () => { const f = filters.find(f => f.id === id); if (f) { f.enabled = chk.checked; entry.classList.toggle('disabled', !f.enabled); applyFiltersToExisting(); persistUiState(); } };
 
             const input = document.createElement('input');
-            input.type = 'text'; input.placeholder = 'keyword...';
-            input.oninput = () => { const f = filters.find(f => f.id === id); if (f) { f.text = input.value; applyFiltersToExisting(); } };
+            input.type = 'text'; input.placeholder = 'keyword...'; input.value = initialText;
+            input.oninput = () => { const f = filters.find(f => f.id === id); if (f) { f.text = input.value; applyFiltersToExisting(); persistUiState(); } };
+
+            const regexBtn = document.createElement('button');
+            regexBtn.className = 'btn-regex';
+            regexBtn.textContent = '.*';
+            regexBtn.title = 'Regex mode';
+            regexBtn.onclick = () => {
+                const f = filters.find(f => f.id === id);
+                if (f) { f.regex = !f.regex; regexBtn.classList.toggle('active', f.regex); applyFiltersToExisting(); persistUiState(); }
+            };
+            regexBtn.classList.toggle('active', initialRegex);
 
             const colorPicker = document.createElement('input');
             colorPicker.type = 'color'; colorPicker.value = color; colorPicker.title = 'Set highlight color';
-            colorPicker.oninput = () => { const f = filters.find(f => f.id === id); if (f) { f.color = colorPicker.value; applyFiltersToExisting(); } };
+            colorPicker.oninput = () => { const f = filters.find(f => f.id === id); if (f) { f.color = colorPicker.value; applyFiltersToExisting(); persistUiState(); } };
 
             const removeBtn = document.createElement('button');
             removeBtn.className = 'filter-remove'; removeBtn.innerHTML = '&times;'; removeBtn.title = 'Remove filter';
-            removeBtn.onclick = () => { filters = filters.filter(f => f.id !== id); entry.remove(); applyFiltersToExisting(); };
+            removeBtn.onclick = () => { filters = filters.filter(f => f.id !== id); entry.remove(); applyFiltersToExisting(); persistUiState(); };
 
-            entry.appendChild(chk); entry.appendChild(input); entry.appendChild(colorPicker); entry.appendChild(removeBtn);
+            entry.appendChild(chk); entry.appendChild(input); entry.appendChild(regexBtn);
+            entry.appendChild(colorPicker); entry.appendChild(removeBtn);
             container.appendChild(entry);
-            input.focus();
+            entry.classList.toggle('disabled', !initialEnabled);
+            if (shouldFocus) {
+                input.focus();
+            }
         }
 
         function clearFilters() {
             filters = [];
             document.getElementById('filterEntries').innerHTML = '';
             applyFiltersToExisting();
+            persistUiState();
         }
 
         function getActiveFilters() { return filters.filter(f => f.enabled && f.text.trim().length > 0); }
@@ -94,7 +130,17 @@ try {
         function matchFilters(text) {
             const active = getActiveFilters();
             if (active.length === 0) return [];
-            return active.filter(f => text.toLowerCase().includes(f.text.toLowerCase()));
+            const matches = [];
+            for (const f of active) {
+                let hit = false;
+                if (f.regex) {
+                    try { hit = new RegExp(f.text, 'i').test(text); } catch (e) { /* invalid regex, skip */ }
+                } else {
+                    hit = text.toLowerCase().includes(f.text.toLowerCase());
+                }
+                if (hit) matches.push(f);
+            }
+            return matches;
         }
 
         function applyFiltersToExisting() {
@@ -243,7 +289,7 @@ try {
             if (autoScroll) { logContent.scrollTop = logContent.scrollHeight; }
         }
 
-        function toggleTimestamp() { showTimestamp = document.getElementById('chkTimestamp').checked; }
+        function toggleTimestamp() { showTimestamp = document.getElementById('chkTimestamp').checked; persistUiState(); }
 
         function toggleInput() {
             inputBar.classList.toggle('visible');
@@ -259,10 +305,10 @@ try {
 
         // ---- Search ----
         let searchDebounce = undefined;
-        function onSearchInput() { clearTimeout(searchDebounce); searchDebounce = setTimeout(performSearch, 200); }
+        function onSearchInput() { persistUiState(); clearTimeout(searchDebounce); searchDebounce = setTimeout(performSearch, 200); }
 
         function performSearch() {
-            const query = searchInput.value.trim().toLowerCase();
+            const query = searchInput.value.trim();
             document.querySelectorAll('.search-match').forEach(el => {
                 const parent = el.parentNode;
                 parent.replaceChild(document.createTextNode(el.textContent), el);
@@ -271,17 +317,34 @@ try {
             searchMatches = []; currentSearchIndex = -1; searchCountEl.textContent = '';
             if (!query) return;
 
+            let regex = null;
+            if (searchRegex) {
+                try { regex = new RegExp(query, 'gi'); } catch (e) { searchCountEl.textContent = 'Invalid regex'; return; }
+            }
+
             const dataSpans = logContent.querySelectorAll('.data');
             for (const span of dataSpans) {
                 const text = span.textContent || '';
-                const lowerText = text.toLowerCase();
                 const parts = [];
-                let lastIndex = 0;
-                let matchIdx;
-                while ((matchIdx = lowerText.indexOf(query, lastIndex)) !== -1) {
-                    parts.push({ start: matchIdx, end: matchIdx + query.length });
-                    lastIndex = matchIdx + 1;
+
+                if (regex) {
+                    let m;
+                    const re = new RegExp(query, 'gi');
+                    while ((m = re.exec(text)) !== null) {
+                        parts.push({ start: m.index, end: m.index + m[0].length });
+                        if (m[0].length === 0) { re.lastIndex++; }
+                    }
+                } else {
+                    const lowerText = text.toLowerCase();
+                    const q = query.toLowerCase();
+                    let lastIndex = 0;
+                    let matchIdx;
+                    while ((matchIdx = lowerText.indexOf(q, lastIndex)) !== -1) {
+                        parts.push({ start: matchIdx, end: matchIdx + q.length });
+                        lastIndex = matchIdx + 1;
+                    }
                 }
+
                 if (parts.length > 0) {
                     const fragment = document.createDocumentFragment();
                     let pos = 0;
@@ -313,12 +376,39 @@ try {
 
         searchInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') { e.shiftKey ? searchPrev() : searchNext(); }
-            if (e.key === 'Escape') { searchInput.value = ''; performSearch(); searchInput.blur(); }
+            if (e.key === 'Escape') { searchInput.value = ''; persistUiState(); performSearch(); searchInput.blur(); }
         });
 
         document.addEventListener('keydown', (e) => {
             if ((e.ctrlKey || e.metaKey) && e.key === 'f') { e.preventDefault(); searchInput.focus(); searchInput.select(); }
         });
+
+        function restoreUiState() {
+            document.getElementById('chkFilterOnly').checked = filterOnly;
+            document.getElementById('btnSearchRegex').classList.toggle('active', searchRegex);
+            searchInput.value = persistedState.searchText || '';
+            document.getElementById('chkTimestamp').checked = Boolean(persistedState.showTimestamp);
+            showTimestamp = Boolean(persistedState.showTimestamp);
+
+            const savedFilters = Array.isArray(persistedState.filters) ? persistedState.filters : [];
+            filters = savedFilters.map((filter, index) => ({
+                id: typeof filter.id === 'number' ? filter.id : index,
+                text: typeof filter.text === 'string' ? filter.text : '',
+                color: typeof filter.color === 'string' ? filter.color : DEFAULT_FILTER_COLORS[index % DEFAULT_FILTER_COLORS.length],
+                enabled: filter.enabled !== false,
+                regex: Boolean(filter.regex)
+            }));
+            filterId = filters.reduce((maxId, filter) => Math.max(maxId, filter.id), -1) + 1;
+            for (const filter of filters) {
+                renderFilterEntry(filter.id, filter.color, filter.text, filter.enabled, filter.regex, false);
+            }
+            if (searchInput.value) {
+                performSearch();
+            }
+            applyFiltersToExisting();
+        }
+
+        restoreUiState();
 
         } catch (e) {
             document.body.innerHTML = '<div style="padding:20px;color:#f44747;font-family:monospace;white-space:pre-wrap;">'

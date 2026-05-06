@@ -176,8 +176,9 @@ foreach ($p in $ports) {
      * CRITICAL: No stdin/Peek() used in PS loop - that was blocking everything.
      */
     async open(config: SerialPortConfig): Promise<void> {
-        if (this.process) {
+        if (this.process || this.tcpClient) {
             await this.close();
+            await new Promise((resolve) => setTimeout(resolve, 500));
         }
         this.currentConfig = config;
         this.dataBuffer = '';
@@ -221,19 +222,6 @@ try {
     $port.Open()
 
     Send-Bytes ("CONNECTED|" + $port.PortName + "|${config.baudRate}" + [char]10)
-    [Console]::Error.WriteLine(
-        "OPENCFG|Port=" + $port.PortName +
-        ",Baud=" + $port.BaudRate +
-        ",DataBits=" + $port.DataBits +
-        ",StopBits=" + $port.StopBits +
-        ",Parity=" + $port.Parity +
-        ",DTR=" + $port.DtrEnable +
-        ",RTS=" + $port.RtsEnable +
-        ",CTS=" + $port.CtsHolding +
-        ",DSR=" + $port.DsrHolding +
-        ",CD=" + $port.CDHolding
-    )
-    [Console]::Error.WriteLine("HEARTBEAT|serial opened, entering read loop")
 
     $hbCount = 0
     while ($port.IsOpen) {
@@ -241,12 +229,10 @@ try {
         try {
             $n = $port.BytesToRead
             if ($n -gt 0) {
-                [Console]::Error.WriteLine("READ|BytesToRead=" + $n)
                 $data = $port.ReadExisting()
                 if ($data.Length -gt 0) {
-                    $data = $data -replace '\\x00', ''
+                    $data = $data -replace '\x00', ''
                     if ($data.Length -gt 0) {
-                        [Console]::Error.WriteLine("READ|ReadExistingLength=" + $data.Length)
                         $bytes = [System.Text.Encoding]::UTF8.GetBytes($data)
                         $stream.Write($bytes, 0, $bytes.Length)
                         $stream.Flush()
@@ -288,14 +274,9 @@ try {
         } catch {}
 
         $hbCount++
-        if ($hbCount -ge 100) {
+        if ($hbCount -ge 500) {
             $hbCount = 0
-            [Console]::Error.WriteLine(
-                "HEARTBEAT|loop running, BytesToRead=" + $port.BytesToRead +
-                ",CTS=" + $port.CtsHolding +
-                ",DSR=" + $port.DsrHolding +
-                ",CD=" + $port.CDHolding
-            )
+            # Keep-alive: just reset the counter
         }
 
         Start-Sleep -Milliseconds 10
@@ -356,6 +337,10 @@ try {
                     this.emit('disconnect', `Process exited (code ${code})`);
                 } else {
                     clearTimeout(timeout);
+                    if (this.tcpClient) {
+                        try { this.tcpClient.destroy(); } catch { }
+                        this.tcpClient = null;
+                    }
                     reject(new Error(`PowerShell exited with code ${code}`));
                 }
             });
@@ -367,6 +352,10 @@ try {
                 this.deleteTempScript();
                 if (!initialized) {
                     clearTimeout(timeout);
+                    if (this.tcpClient) {
+                        try { this.tcpClient.destroy(); } catch { }
+                        this.tcpClient = null;
+                    }
                     reject(new Error(`PowerShell error: ${err.message}`));
                 }
             });
@@ -563,7 +552,15 @@ try {
             this.tcpClient = null;
         }
         if (this.process) {
+            const process = this.process;
             try { this.process.kill(); } catch { }
+            await new Promise((resolve) => {
+                const timer = setTimeout(resolve, 1000);
+                process.once('close', () => {
+                    clearTimeout(timer);
+                    resolve(undefined);
+                });
+            });
             this.process = null;
         }
         this.deleteTempScript();

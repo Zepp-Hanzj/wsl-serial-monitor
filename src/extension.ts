@@ -159,23 +159,14 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Serial data events
     let dataCount = 0;
-    let rawChunkLogCount = 0;
     serialManager.on('data', (data: string) => {
         dataCount++;
-        if (rawChunkLogCount < 10) {
-            rawChunkLogCount++;
-            const preview = data.replace(/\r/g, '\\r').replace(/\n/g, '\\n').slice(0, 120);
-            outputChannel?.appendLine(
-                `[DATA] chunk=${rawChunkLogCount} bytes=${Buffer.byteLength(data, 'utf-8')} preview=${preview}`
-            );
-        }
         if (viewProvider) { viewProvider.appendLog(data); }
     });
 
     serialManager.on('connect', (info: string) => {
         outputChannel?.appendLine(`[CONNECTED] ${info}`);
         dataCount = 0;
-        rawChunkLogCount = 0;
         if (viewProvider) { viewProvider.setStatus(true, info); }
         treeProvider.refresh();
         vscode.window.showInformationMessage(`Connected: ${info}`);
@@ -191,11 +182,6 @@ export function activate(context: vscode.ExtensionContext) {
     serialManager.on('error', (err: string) => {
         outputChannel?.appendLine(`[ERROR] ${err}`);
         vscode.window.showErrorMessage(`Serial Error: ${err}`);
-    });
-
-    // Heartbeat from PS loop — helps diagnose if the loop is running
-    serialManager.on('heartbeat', (msg: string) => {
-        outputChannel?.appendLine(`[HB] ${msg}`);
     });
 
     outputChannel.appendLine('[INIT] Extension activated.');
@@ -246,7 +232,7 @@ async function openSerialPort(options: { tryDefaultPortFirst: boolean }) {
             outputChannel?.appendLine(`[OPEN] Trying default port ${defaultPortConfig.port} @ ${defaultPortConfig.baudRate}`);
 
             try {
-                await serialManager.open(defaultPortConfig);
+                await openSerialPortWithRetry(defaultPortConfig, 'default port');
                 outputChannel?.appendLine('[OPEN] Connected using default port');
                 return;
             } catch (err: any) {
@@ -288,7 +274,7 @@ async function openSerialPort(options: { tryDefaultPortFirst: boolean }) {
         outputChannel?.appendLine(`[OPEN] ${portConfig.port} @ ${portConfig.baudRate}`);
 
         try {
-            await serialManager.open(portConfig);
+            await openSerialPortWithRetry(portConfig, 'selected port');
             outputChannel?.appendLine('[OPEN] Connected');
         } catch (err: any) {
             outputChannel?.appendLine(`[ERROR] ${err.message}`);
@@ -296,6 +282,32 @@ async function openSerialPort(options: { tryDefaultPortFirst: boolean }) {
         }
     } finally {
         openInProgress = false;
+    }
+}
+function isAccessDeniedError(err: unknown): boolean {
+    const message = err instanceof Error ? err.message : String(err ?? '');
+    return /access is denied|access denied|访问被拒绝/i.test(message);
+}
+
+async function openSerialPortWithRetry(
+    portConfig: ReturnType<typeof buildPortConfig>,
+    source: string
+): Promise<void> {
+    if (!serialManager) {
+        throw new Error('Serial manager is not initialized.');
+    }
+
+    try {
+        await serialManager.open(portConfig);
+    } catch (err) {
+        if (!isAccessDeniedError(err)) {
+            throw err;
+        }
+
+        outputChannel?.appendLine(`[OPEN] ${source} hit access denied, retrying once after cleanup`);
+        await serialManager.close();
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        await serialManager.open(portConfig);
     }
 }
 

@@ -2,7 +2,7 @@
   "name": "wsl-serial-monitor",
   "displayName": "Serial Monitor (WSL & Windows)",
   "description": "Open and monitor COM serial ports from WSL or native Windows, with real-time log display, color filters, and search in an editor tab.",
-  "version": "0.2.9",
+  "version": "0.2.10",
   "publisher": "Roger-Han",
   "author": {
     "name": "Roger-Han"
@@ -31,9 +31,9 @@
     "uart"
   ],
   "bugs": {
-    "url": "https://github.com/hanzj/wsl-serial-monitor/issues"
+    "url": "https://github.com/Zepp-Hanzj/wsl-serial-monitor/issues"
   },
-  "homepage": "https://github.com/hanzj/wsl-serial-monitor#readme",
+  "homepage": "https://github.com/Zepp-Hanzj/wsl-serial-monitor#readme",
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
