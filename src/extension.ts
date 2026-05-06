@@ -204,6 +204,8 @@ async function tryAutoConnectOnStartup(treeProvider: SerialMonitorTreeProvider) 
         return;
     }
 
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+
     await openSerialPort({ tryDefaultPortFirst: true });
     treeProvider.refresh();
 }

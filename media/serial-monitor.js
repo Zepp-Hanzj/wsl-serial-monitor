@@ -17,6 +17,9 @@ try {
         const btnAutoScroll = document.getElementById('btnAutoScroll');
         const pausedIndicator = document.getElementById('pausedIndicator');
         const inputBar = document.getElementById('inputBar');
+        const quickCommandEditor = document.getElementById('quickCommandEditor');
+        const quickCommandInput = document.getElementById('quickCommandInput');
+        const quickCommandList = document.getElementById('quickCommandList');
         const searchInput = document.getElementById('searchInput');
         const searchCountEl = document.getElementById('searchCount');
         const filterCountEl = document.getElementById('filterCount');
@@ -30,6 +33,11 @@ try {
         let showTimestamp = false;
         let maxBufferBytes = window.__maxBufferBytes || 2097152;
         let displayedBufferBytes = 0;
+        let appendNewline = persistedState.appendNewline !== false;
+        let quickCommands = Array.isArray(persistedState.quickCommands) ? persistedState.quickCommands : [];
+        let quickCommandId = quickCommands.reduce((maxId, item) => {
+            return Math.max(maxId, typeof item?.id === 'number' ? item.id : -1);
+        }, -1) + 1;
 
         function getLineByteSize(text) {
             return new TextEncoder().encode(text + '\n').length;
@@ -51,10 +59,101 @@ try {
                 searchRegex,
                 filterOnly,
                 filters,
-                showTimestamp: document.getElementById('chkTimestamp')?.checked || false
+                showTimestamp: document.getElementById('chkTimestamp')?.checked || false,
+                appendNewline,
+                quickCommands
             };
             vscode.setState(state);
             vscode.postMessage({ command: 'persistUiState', state });
+        }
+
+        function normalizeQuickCommand(item, index) {
+            return {
+                id: typeof item?.id === 'number' ? item.id : index,
+                text: typeof item?.text === 'string' ? item.text : '',
+                hex: Boolean(item?.hex),
+                appendNewline: item?.appendNewline !== false
+            };
+        }
+
+        function renderQuickCommands() {
+            quickCommandList.innerHTML = '';
+            if (quickCommands.length === 0) {
+                const empty = document.createElement('span');
+                empty.className = 'quick-command-empty';
+                empty.textContent = 'No quick commands';
+                quickCommandList.appendChild(empty);
+                return;
+            }
+
+            for (const item of quickCommands) {
+                const chip = document.createElement('div');
+                chip.className = 'quick-command-chip';
+
+                const sendBtn = document.createElement('button');
+                sendBtn.className = 'quick-command-send';
+                const flags = [item.hex ? 'HEX' : null, item.appendNewline ? 'CRLF' : null].filter(Boolean).join(', ');
+                sendBtn.title = flags ? `${flags}: ${item.text}` : item.text;
+                sendBtn.textContent = item.hex ? `[HEX] ${item.text}` : item.text;
+                sendBtn.onclick = () => sendQuickCommand(item.id);
+
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'quick-command-remove';
+                removeBtn.title = 'Remove quick command';
+                removeBtn.textContent = '×';
+                removeBtn.onclick = () => removeQuickCommand(item.id);
+
+                chip.appendChild(sendBtn);
+                chip.appendChild(removeBtn);
+                quickCommandList.appendChild(chip);
+            }
+        }
+
+        function addQuickCommand() {
+            const text = quickCommandInput.value.trim();
+            if (!text) {
+                quickCommandInput.focus();
+                return;
+            }
+
+            quickCommands.push({
+                id: quickCommandId++,
+                text,
+                hex: document.getElementById('quickCommandHexMode').checked,
+                appendNewline: document.getElementById('quickCommandAppendNewline').checked
+            });
+            quickCommandInput.value = '';
+            document.getElementById('quickCommandHexMode').checked = false;
+            document.getElementById('quickCommandAppendNewline').checked = true;
+            renderQuickCommands();
+            persistUiState();
+            toggleQuickCommandEditor(false);
+        }
+
+        function removeQuickCommand(id) {
+            quickCommands = quickCommands.filter(item => item.id !== id);
+            renderQuickCommands();
+            persistUiState();
+        }
+
+        function sendQuickCommand(id) {
+            const item = quickCommands.find(command => command.id === id);
+            if (!item) {
+                return;
+            }
+            vscode.postMessage({ command: 'send', text: item.text, hex: item.hex, appendNewline: item.appendNewline });
+        }
+
+        function toggleQuickCommandEditor(forceVisible) {
+            const shouldShow = typeof forceVisible === 'boolean' ? forceVisible : !quickCommandEditor.classList.contains('visible');
+            quickCommandEditor.classList.toggle('visible', shouldShow);
+            if (shouldShow) {
+                quickCommandInput.focus();
+            } else {
+                quickCommandInput.value = '';
+                document.getElementById('quickCommandHexMode').checked = false;
+                document.getElementById('quickCommandAppendNewline').checked = true;
+            }
         }
 
         function toggleFilterMode() {
@@ -302,7 +401,12 @@ try {
             const input = document.getElementById('sendInput');
             const hexMode = document.getElementById('hexMode');
             const text = input.value;
-            if (text) { vscode.postMessage({ command: 'send', text, hex: hexMode.checked }); input.value = ''; }
+            if (text) {
+                appendNewline = document.getElementById('appendNewline').checked;
+                persistUiState();
+                vscode.postMessage({ command: 'send', text, hex: hexMode.checked, appendNewline });
+                input.value = '';
+            }
         }
 
         // ---- Search ----
@@ -391,6 +495,10 @@ try {
             searchInput.value = persistedState.searchText || '';
             document.getElementById('chkTimestamp').checked = Boolean(persistedState.showTimestamp);
             showTimestamp = Boolean(persistedState.showTimestamp);
+            document.getElementById('appendNewline').checked = appendNewline;
+            quickCommands = quickCommands.map(normalizeQuickCommand).filter(item => item.text.length > 0);
+            quickCommandId = quickCommands.reduce((maxId, item) => Math.max(maxId, item.id), -1) + 1;
+            renderQuickCommands();
 
             const savedFilters = Array.isArray(persistedState.filters) ? persistedState.filters : [];
             filters = savedFilters.map((filter, index) => ({

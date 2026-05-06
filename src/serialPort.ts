@@ -121,6 +121,24 @@ export class SerialPortManager extends EventEmitter {
         }
     }
 
+    private waitForProcessClose(process: ChildProcess, timeoutMs: number): Promise<boolean> {
+        return new Promise((resolve) => {
+            let settled = false;
+            const finish = (closed: boolean) => {
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                clearTimeout(timer);
+                process.removeListener('close', onClose);
+                resolve(closed);
+            };
+            const onClose = () => finish(true);
+            const timer = setTimeout(() => finish(false), timeoutMs);
+            process.once('close', onClose);
+        });
+    }
+
     async listPorts(): Promise<ComPortInfo[]> {
         const psPath = this.getPowerShellPath();
         const script = `
@@ -543,26 +561,34 @@ try {
      */
     async close(): Promise<void> {
         this._connected = false;
+        const process = this.process;
+
         if (this.tcpClient) {
             try {
                 this.tcpClient.write('QUIT\n');
-                await new Promise(r => setTimeout(r, 300));
             } catch { }
+
+            const closedGracefully = process
+                ? await this.waitForProcessClose(process, 2000)
+                : false;
+
+            if (!closedGracefully) {
+                try { this.tcpClient.destroy(); } catch { }
+                this.tcpClient = null;
+            }
+        }
+
+        if (process && this.process) {
+            try { this.process.kill(); } catch { }
+            await this.waitForProcessClose(process, 1000);
+            this.process = null;
+        }
+
+        if (this.tcpClient) {
             try { this.tcpClient.destroy(); } catch { }
             this.tcpClient = null;
         }
-        if (this.process) {
-            const process = this.process;
-            try { this.process.kill(); } catch { }
-            await new Promise((resolve) => {
-                const timer = setTimeout(resolve, 1000);
-                process.once('close', () => {
-                    clearTimeout(timer);
-                    resolve(undefined);
-                });
-            });
-            this.process = null;
-        }
+
         this.deleteTempScript();
     }
 

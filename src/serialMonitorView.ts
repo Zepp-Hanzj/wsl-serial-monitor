@@ -90,6 +90,20 @@ export class SerialMonitorViewProvider {
         }
     }
 
+    private createSendBuffer(text: string, hex: boolean, appendNewline: boolean): Buffer {
+        if (hex) {
+            const normalized = text.replace(/^0x/i, '').replace(/\s+/g, '');
+            if (!normalized || normalized.length % 2 !== 0 || /[^0-9a-f]/i.test(normalized)) {
+                throw new Error('Invalid HEX input. Use an even number of hex characters.');
+            }
+            const buffer = Buffer.from(normalized, 'hex');
+            return appendNewline ? Buffer.concat([buffer, Buffer.from('\r\n', 'utf-8')]) : buffer;
+        }
+
+        const payload = appendNewline ? `${text}\r\n` : text;
+        return Buffer.from(payload, 'utf-8');
+    }
+
     revive(panel: vscode.WebviewPanel): void {
         if (this.panel) {
             panel.dispose();
@@ -151,13 +165,19 @@ export class SerialMonitorViewProvider {
                         vscode.window.showInformationMessage('Log copied to clipboard.');
                         break;
                     case 'send':
-                        if (this.serialManager.isConnected()) {
-                            try {
-                                const data = Buffer.from(message.text, 'utf-8');
-                                await this.serialManager.send(data);
-                            } catch (err: any) {
-                                vscode.window.showErrorMessage(`Send failed: ${err.message}`);
-                            }
+                        if (!this.serialManager.isConnected()) {
+                            vscode.window.showWarningMessage('No serial port is open. Connect before sending.');
+                            break;
+                        }
+                        try {
+                            const data = this.createSendBuffer(
+                                String(message.text ?? ''),
+                                Boolean(message.hex),
+                                Boolean(message.appendNewline)
+                            );
+                            await this.serialManager.send(data);
+                        } catch (err: any) {
+                            vscode.window.showErrorMessage(`Send failed: ${err.message}`);
                         }
                         break;
                     case 'connect':
@@ -603,6 +623,22 @@ export class SerialMonitorViewProvider {
 
         .input-bar.visible { display: flex; }
 
+        .input-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .input-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+            flex-wrap: wrap;
+        }
+
         .input-bar input {
             flex: 1;
             padding: 6px 10px;
@@ -616,6 +652,89 @@ export class SerialMonitorViewProvider {
         }
 
         .input-bar input:focus { border-color: var(--btn-bg); }
+
+        .quick-command-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+            flex-wrap: wrap;
+        }
+
+        .quick-command-editor {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+            flex-wrap: wrap;
+        }
+
+        .quick-command-editor.visible {
+            display: flex;
+        }
+
+        .quick-command-list {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+            min-width: 0;
+            flex: 1;
+        }
+
+        .quick-command-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            max-width: 240px;
+            padding: 3px 4px 3px 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 999px;
+            background: var(--input-bg);
+        }
+
+        .quick-command-chip button {
+            border: none;
+            background: transparent;
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: 11px;
+            line-height: 1;
+        }
+
+        .quick-command-send {
+            max-width: 190px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            padding: 0 2px;
+        }
+
+        .quick-command-remove {
+            color: var(--text-secondary) !important;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+        }
+
+        .quick-command-remove:hover {
+            background: var(--danger-bg) !important;
+            color: #fff !important;
+        }
+
+        .quick-command-empty {
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .input-inline-label {
+            font-size: 11px;
+            color: var(--text-secondary);
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            white-space: nowrap;
+        }
 
         .paused-indicator {
             display: none;
@@ -835,12 +954,35 @@ export class SerialMonitorViewProvider {
         <div class="paused-indicator" id="pausedIndicator" onclick="togglePause()">⏸ PAUSED — Click to resume</div>
     </div>
     <div class="input-bar" id="inputBar">
-        <span style="color: var(--text-secondary); font-size: 12px;">TX:</span>
-        <input type="text" id="sendInput" placeholder="Type data to send..." onkeydown="if(event.key==='Enter')sendData()" />
-        <button class="btn btn-primary" onclick="sendData()">Send</button>
-        <label style="font-size: 11px; color: var(--text-secondary); display: flex; align-items: center; gap: 4px;">
-            <input type="checkbox" id="hexMode" /> HEX
-        </label>
+        <div class="input-panel">
+            <div class="input-row">
+                <span style="color: var(--text-secondary); font-size: 12px;">TX:</span>
+                <input type="text" id="sendInput" placeholder="Type data to send..." onkeydown="if(event.key==='Enter')sendData()" />
+                <button class="btn btn-primary" onclick="sendData()">Send</button>
+                <label class="input-inline-label" title="Append CRLF when sending">
+                    <input type="checkbox" id="appendNewline" checked /> CRLF
+                </label>
+                <label class="input-inline-label">
+                    <input type="checkbox" id="hexMode" /> HEX
+                </label>
+            </div>
+            <div class="quick-command-row">
+                <span style="color: var(--text-secondary); font-size: 12px;">Quick:</span>
+                <div class="quick-command-list" id="quickCommandList"></div>
+                <button class="btn" onclick="toggleQuickCommandEditor()">＋ Add</button>
+            </div>
+            <div class="quick-command-editor" id="quickCommandEditor">
+                <input type="text" id="quickCommandInput" placeholder="Add quick command..." onkeydown="if(event.key==='Enter')addQuickCommand()" />
+                <label class="input-inline-label" title="Append CRLF when sending this quick command">
+                    <input type="checkbox" id="quickCommandAppendNewline" checked /> CRLF
+                </label>
+                <label class="input-inline-label">
+                    <input type="checkbox" id="quickCommandHexMode" /> HEX
+                </label>
+                <button class="btn" onclick="addQuickCommand()">Save</button>
+                <button class="btn" onclick="toggleQuickCommandEditor(false)">Cancel</button>
+            </div>
+        </div>
     </div>
     <script>
         // Pass config from host to external script

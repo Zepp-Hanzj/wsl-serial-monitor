@@ -34,7 +34,7 @@ git remote -v
 
 编辑 `package.json`：
 
-- 将 `version` 从旧版本递增为新版本，例如 `0.2.10` -> `0.2.11`
+- 将 `version` 从旧版本递增为新版本，例如 `0.2.11` -> `0.2.12`
 - 确认以下字段正确：
 
 ```json
@@ -67,12 +67,12 @@ npx @vscode/vsce package
 期望结果：
 
 - 编译成功，无 TypeScript 错误
-- 生成新的 VSIX，例如 `wsl-serial-monitor-0.2.11.vsix`
+- 生成新的 VSIX，例如 `wsl-serial-monitor-0.2.12.vsix`
 
 如需本地安装验证，可执行：
 
 ```bash
-code --install-extension wsl-serial-monitor-0.2.11.vsix --force
+code --install-extension wsl-serial-monitor-0.2.12.vsix --force
 ```
 
 ## 提交并推送远端
@@ -82,7 +82,7 @@ code --install-extension wsl-serial-monitor-0.2.11.vsix --force
 ```bash
 cd /home/hanzj/workspace/tools/serial-monitor
 git add package.json README.md media/serial-monitor.js src/extension.ts src/serialMonitorView.ts src/serialPort.ts
-git commit -m "Release 0.2.11"
+git commit -m "Release 0.2.12"
 git push origin master
 ```
 
@@ -104,16 +104,16 @@ npx @vscode/vsce publish
 成功后通常会看到类似输出：
 
 ```text
-Publishing 'Roger-Han.wsl-serial-monitor v0.2.11'...
+Publishing 'Roger-Han.wsl-serial-monitor v0.2.12'...
 Extension URL: https://marketplace.visualstudio.com/items?itemName=Roger-Han.wsl-serial-monitor
-DONE Published Roger-Han.wsl-serial-monitor v0.2.11.
+DONE Published Roger-Han.wsl-serial-monitor v0.2.12.
 ```
 
 ## 本次实操记录
 
 本次实际发布使用的是以下版本与结果：
 
-- 发布版本：`0.2.11`
+- 发布版本：`0.2.12`
 - Git 提交：`待本次发布后更新`
 - 推送分支：`origin/master`
 - 商店发布结果：成功
@@ -125,7 +125,7 @@ cd /home/hanzj/workspace/tools/serial-monitor
 npm run compile
 npx @vscode/vsce package
 git add package.json README.md media/serial-monitor.js src/extension.ts src/serialMonitorView.ts src/serialPort.ts
-git commit -m "Release 0.2.11"
+git commit -m "Release 0.2.12"
 git push origin master
 npx @vscode/vsce publish
 ```
