@@ -2,7 +2,7 @@
   "name": "wsl-serial-monitor",
   "displayName": "Serial Monitor (WSL & Windows)",
   "description": "Open and monitor COM serial ports from WSL or native Windows, with real-time log display, color filters, and search in an editor tab.",
-  "version": "0.2.10",
+  "version": "0.2.11",
   "publisher": "Roger-Han",
   "author": {
     "name": "Roger-Han"

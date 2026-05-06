@@ -1,6 +1,6 @@
 try {
         const vscode = acquireVsCodeApi();
-    const persistedState = vscode.getState() || {};
+    const persistedState = window.__persistedUiState || vscode.getState() || {};
         // IMPORTANT: Fire ready IMMEDIATELY so host knows this script is alive.
         // Must be before any complex logic that could throw.
         vscode.postMessage({ command: 'ready' });
@@ -46,13 +46,15 @@ try {
         let searchRegex = Boolean(persistedState.searchRegex);
 
         function persistUiState() {
-            vscode.setState({
+            const state = {
                 searchText: searchInput.value,
                 searchRegex,
                 filterOnly,
                 filters,
                 showTimestamp: document.getElementById('chkTimestamp')?.checked || false
-            });
+            };
+            vscode.setState(state);
+            vscode.postMessage({ command: 'persistUiState', state });
         }
 
         function toggleFilterMode() {

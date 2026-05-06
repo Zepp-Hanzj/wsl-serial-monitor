@@ -1,6 +1,6 @@
 # Serial Monitor (WSL & Windows)
 
-[![Version](https://img.shields.io/badge/version-0.2.10-blue)](https://marketplace.visualstudio.com/items?itemName=Roger-Han.wsl-serial-monitor)
+[![Version](https://img.shields.io/badge/version-0.2.11-blue)](https://marketplace.visualstudio.com/items?itemName=Roger-Han.wsl-serial-monitor)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![GitHub](https://img.shields.io/badge/GitHub-Zepp--Hzanj%2Fwsl--serial--monitor-blue?logo=github)](https://github.com/Zepp-Hanzj/wsl-serial-monitor)
 
@@ -62,7 +62,7 @@ code --install-extension Roger-Han.wsl-serial-monitor
 **方式三：从 VSIX 安装**
 
 ```bash
-code --install-extension wsl-serial-monitor-0.2.10.vsix
+code --install-extension wsl-serial-monitor-0.2.11.vsix
 ```
 
 ### 使用

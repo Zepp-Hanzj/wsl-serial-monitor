@@ -376,6 +376,8 @@ async function saveLog() {
     }
 }
 
-export function deactivate() {
-    if (serialManager) { serialManager.close(); }
+export async function deactivate(): Promise<void> {
+    if (serialManager) {
+        await serialManager.close();
+    }
 }

@@ -16,6 +16,7 @@ import * as path from 'path';
 import { SerialPortManager } from './serialPort';
 
 export class SerialMonitorViewProvider {
+    private static readonly UI_STATE_KEY = 'serialMonitor.uiState';
     private panel: vscode.WebviewPanel | undefined;
     private context: vscode.ExtensionContext;
     private extensionUri: vscode.Uri;
@@ -65,6 +66,20 @@ export class SerialMonitorViewProvider {
 
     private getLineByteSize(line: string): number {
         return Buffer.byteLength(line, 'utf-8') + 1;
+    }
+
+    private getPersistedUiState(): Record<string, unknown> {
+        return this.context.workspaceState.get<Record<string, unknown>>(
+            SerialMonitorViewProvider.UI_STATE_KEY,
+            {}
+        );
+    }
+
+    private async persistUiState(state: unknown): Promise<void> {
+        await this.context.workspaceState.update(
+            SerialMonitorViewProvider.UI_STATE_KEY,
+            (state && typeof state === 'object') ? state as Record<string, unknown> : {}
+        );
     }
 
     private trimLogBuffer(maxBufferBytes: number): void {
@@ -166,6 +181,9 @@ export class SerialMonitorViewProvider {
                         break;
                     case 'save':
                         vscode.commands.executeCommand('wsl-serial-monitor.saveLog');
+                        break;
+                    case 'persistUiState':
+                        await this.persistUiState(message.state);
                         break;
                 }
             },
@@ -351,6 +369,7 @@ export class SerialMonitorViewProvider {
         const scriptUri = this.panel?.webview.asWebviewUri(
             vscode.Uri.joinPath(this.extensionUri, 'media', 'serial-monitor.js')
         );
+        const persistedUiStateJson = JSON.stringify(this.getPersistedUiState()).replace(/</g, '\\u003c');
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -826,6 +845,7 @@ export class SerialMonitorViewProvider {
     <script>
         // Pass config from host to external script
         window.__maxBufferBytes = ${this.getMaxBufferBytes()};
+        window.__persistedUiState = ${persistedUiStateJson};
     </script>
     <script src="${scriptUri}"></script>
 </body>
